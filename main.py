@@ -7,6 +7,7 @@ import time
 import sys
 from datetime import datetime
 
+
 #controllo del parametro di avvio
 if (sys.argv[1] == 'help' or sys.argv[1] == '-h'):
     print('Utilizzo: ' + sys.argv[0] + " <link dell'immagine>")
@@ -31,7 +32,7 @@ time_check = 5
 
 
 #funzione di debug dei messaggi
-def debug(string, status = True):
+def debug(string, status = False):
     if(status):
         print('[' + datetime.now().strftime('%H:%M:%S') + '] ' + string)
 
