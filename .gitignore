@@ -1,4 +1,4 @@
 #file to ignore
 save/
-tempgit
-.gitignore
+temp/
+image.jpg
