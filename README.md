@@ -10,3 +10,6 @@ Es. python3 main.py "https://source.unsplash.com/random/200x200?sig=1"
 Per la release: nome del file "url da monitorare"
 <br>
 Es. file.exe "https://source.unsplash.com/random/200x200?sig=1"
+
+<br>
+Attraverso l'opzione -h o --help è possibile visualizzare il menu di aiuto
