@@ -32,47 +32,83 @@ none_choice = False
 
 #presa dei parametri
 def get_argv():
-    parser = argparse.ArgumentParser(description="", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser = argparse.ArgumentParser(add_help=False)
-    parser.add_argument('-v', '--version', action='version', version='%(prog)s ' + str(VERSION), help="Versione del programma")
-    parser.add_argument('-h', '--help', action='help', default=argparse.SUPPRESS, help='Visualizza i comandi')
-    parser.add_argument("-n", action="store_true", dest="none", help="Nessun testo di risposta")
-    parser.add_argument("-d", action="store_true", dest="debug", help="attivazione del debug")
-    parser.add_argument("-t", help="Ogni quanto controllare", default=STOP, dest="time", type=int)
-    parser.add_argument("-r", help="Quante volte controllare", default=REPEAT, dest="repeat", type=int)
-    parser.add_argument("url", help="Url da monitorare")
-    args = parser.parse_args()
-    return args
+    try:
+        parser = argparse.ArgumentParser(description="", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+        parser = argparse.ArgumentParser(add_help=False)
+        parser.add_argument('-v', '--version', action='version', version='%(prog)s ' + str(VERSION), help="Versione del programma")
+        parser.add_argument('-h', '--help', action='help', default=argparse.SUPPRESS, help='Visualizza i comandi')
+        parser.add_argument("-n", action="store_true", dest="none", help="Nessun testo di risposta")
+        parser.add_argument("-d", action="store_true", dest="debug", help="attivazione del debug")
+        parser.add_argument("-t", help="Ogni quanto controllare", default=STOP, dest="time", type=int)
+        parser.add_argument("-r", help="Quante volte controllare", default=REPEAT, dest="repeat", type=int)
+        parser.add_argument("url", help="Url da monitorare")
+        args = parser.parse_args()
+        return args
+    except ValueError:
+        print("Errore durante la sezione parametri")
+        sys.exit()
 
 #controllo dei parametri
 def check_argv(argv):
-    #controllo varoli inserti
-    #tempo
-    if (int(argv.time) < 5 or int(argv.time) > 2592000):
-        print("Il tempo non deve essere minore di 5 o maggiore di 2592000")
+    #controllo valori inserti
+
+    #controllo del tempo di esecuzione
+    try:
+        if (int(argv.time) < 5 or int(argv.time) > 2592000):
+            print("Il tempo non deve essere minore di 5 o maggiore di 2592000") #messaggio di errore
+            debug("Valore del tempo non valido", debug_choice)
+            sys.exit()
+        else:
+            debug("Valore del tempo valido", debug_choice) #validazione del tempo eseguita con successo
+    except ValueError:
+        print("Errore durante la sezione controllo del tempo di durata")
         sys.exit()
-    #cicli da ripetere
-    if (int(argv.repeat) < -1 or int(argv.repeat) > 999999999):
-        print("Il numero delle volte da ripete è troppo alto")
+
+
+
+    #controllo dei cicli da ripetere
+    try:
+        if (int(argv.repeat) < -1 or int(argv.repeat) > 999999999):
+            print("Il numero dei cicli di controllo immessi è maggiore di quello permesso") #messaggio di errore
+            debug("Valore dei cicli non valido", debug_choice)
+            sys.exit()
+        else:
+            debug("Valore del numero di cicli di controllo è valido", debug_choice) #validazione dell'input del numero di cicli di controllo
+    except ValueError:
+        print("Errore durante l'analisi dei cicli di controllo")
         sys.exit()
-    #controllo formato dell'url
-    if (not is_url(argv.url)):
-        print("Il sito sembra non essere valido")
+
+
+
+    #controllo formato testuale dell'url
+    if (is_url(argv.url)):
+        debug("l'Url inserito sembra essere in un formato valido", debug_choice)
+    else:
+        print("Il sito inserito non sembra essere un url")
+        debug("l'Url inserito non sembra essere in un formato valido", debug_choice)
         sys.exit()
-    #controllo eisstenza dell'url
-    response = requests.get(argv.url)
-    if (response.status_code != 200):
-        print("Il sito sembra non essere raggiungibile")
+
+
+
+    #controllo se l'url è raggiungibile
+    try:
+        response = requests.get(argv.url)
+        if (response.status_code != 200):
+            print("Sito non raggiungibile inserirne uno raggiungibile") #messaggio di errore
+            debug("Non è possibile stabilire una connessione con l'url inserito", debug_choice)
+            sys.exit()
+        else:
+            debug("Url validato correttamente", debug_choice) #validazione dell'input dell'url
+    except:
+        print("L'url sembra non essere raggiungibile o non valido")
         sys.exit()
 
 #controllo url
 def is_url(url):
     try:
         result = urlparse(url)
-        debug("Url valido", debug_choice)
         return all([result.scheme, result.netloc])
     except ValueError:
-        debug("Url non valido", debug_choice)
         return False
 
 #controlo con md5 del file
