@@ -1,6 +1,9 @@
 #!/usr/bin/python
 
+#librerie
 try:
+    import pickle
+    import re
     import pathlib
     import argparse
     import sys
@@ -35,10 +38,13 @@ PATH_SAVE = 'save'
 HOUR_FORMAT = '%Y_%m_%d_%H_%M_%S'
 NAME_FILE = 'file'
 LOG_FILE = 'log.txt'
+SAVE_DATA = 'preference.data'
 
+#scelte utente
 log_choice = False
 none_choice = False
 
+#controllo connessione ad internet
 def connected_to_internet(url='http://www.google.com/', timeout=5):
     try:
         _ = requests.head(url, timeout=timeout)
@@ -58,6 +64,7 @@ def get_argv():
         parser.add_argument("-t", help="Ogni quanto controllare 5 - 2592000", default=STOP, dest="time", type=int)
         parser.add_argument("-r", help="Quante volte controllare 0 - 999999999", default=REPEAT, dest="repeat", type=int)
         parser.add_argument("-e", help="Tipologia di estensione personale", dest="ext", type=str)
+        parser.add_argument("-f", help="Nome custom per il file", dest="name", type=str)
         parser.add_argument("url", help="Url da monitorare")
         args = parser.parse_args()
         return args
@@ -77,7 +84,7 @@ def check_argv(argv):
             log("Valore del tempo di attesa per ogni ciclo valido", log_choice) #validazione del tempo eseguita con successo
     except Exception as e:
         log(e.args, log_choice)
-        print("Chiusura inaspettata del programma")
+        print("Chiusura inaspettata del programma" + e.args)
         sys.exit()
 
     #controllo dei cicli da ripetere
@@ -112,6 +119,20 @@ def check_argv(argv):
             print("Estenzione non valida")
             sys.exit()
         log("Estenzione valida", log_choice)
+    except Exception as e:
+        log(e.args, log_choice)
+        print("Chiusura inaspettata del programma")
+        sys.exit() 
+
+    #controllo del nome personalizzato
+    try:
+        if (argv.name != None):
+            regexp = re.compile('[^0-9a-zA-Z]+')
+            if regexp.search(argv.name):
+                log("None non valido", log_choice)
+                print("Il nome inserito non è valido")
+                sys.exit() 
+        log("Nome valido", log_choice)
     except Exception as e:
         log(e.args, log_choice)
         print("Chiusura inaspettata del programma")
@@ -175,9 +196,16 @@ def main():
         print("Controlla la connessione ad internet")
         sys.exit()
     try:
-        #contorllo argomenti
-        argv = get_argv()
-        check_argv(argv)
+        if (len(sys.argv) == 1 and os.path.exists(SAVE_DATA)):
+            with open(SAVE_DATA, 'rb') as f:
+                argv = pickle.load(f)
+        else:
+            argv = get_argv()
+        #controllo argomenti
+        check_argv(argv)            
+        file1 = open(SAVE_DATA, "wb") 
+        pickle.dump(argv, file1)
+        file1.close
         #associazioni variabili
         stop = int(argv.time)
         repeat = int(argv.repeat)
@@ -187,17 +215,19 @@ def main():
         ext = argv.ext
         #creazione di una cartella temporanea
         PATH_TEMP = tempfile.mkdtemp()
+        if (argv.name):
+            name_file = str(argv.name)
+        else:
+            name_file = NAME_FILE
         log("Caricamento delle variabili eseguito con successo", log_choice)
     except Exception as e:
         log(e.args, log_choice)
         print("Chiusura inaspettata del programma")
         sys.exit()
-
-
     for i in count(0):
         try:
             #download del file temporaneo per il controllo
-            temp_name = '/' + NAME_FILE + '_' + datetime.now().strftime(HOUR_FORMAT)
+            temp_name = '/' + name_file + '_' + datetime.now().strftime(HOUR_FORMAT)
             temp_name = '' + temp_name + get_file(url, PATH_TEMP, temp_name, ext)
             log("Nome del file generato correttamente", log_choice)
 
@@ -212,13 +242,13 @@ def main():
                 latest_file = max(list_of_files, key=os.path.getmtime)
                 if (get_md5(PATH_TEMP + temp_name) != get_md5(latest_file)): #se è diverso da quello attuale
                     shutil.copy2(PATH_TEMP + temp_name, PATH_SAVE + temp_name)
-                    shutil.copy2(PATH_TEMP + temp_name, NAME_FILE + pathlib.Path(temp_name).suffix) 
+                    shutil.copy2(PATH_TEMP + temp_name, name_file + pathlib.Path(temp_name).suffix) 
                     if (none_choice):
                         print("Nuova immagine trovata (" + str(i + 1) + ")")
                         log("Nuova immagine trovata", log_choice)
             else:
                 shutil.copy2(PATH_TEMP + temp_name, PATH_SAVE + temp_name)
-                shutil.copy2(PATH_TEMP + temp_name, NAME_FILE + pathlib.Path(temp_name).suffix) 
+                shutil.copy2(PATH_TEMP + temp_name, name_file + pathlib.Path(temp_name).suffix) 
                 if (none_choice):
                     print("Nuova immagine trovata (" + str(i + 1) + ")")
                     log("Nuova immagine trovata", log_choice)
