@@ -1,16 +1,26 @@
 #!/usr/bin/python
 
-import argparse
-import sys
-import requests
-import os
-import shutil
-import hashlib
-import glob
-import time
-from itertools import count
-from urllib.parse import urlparse
-from datetime import datetime
+try:
+    import argparse
+    import sys
+    import requests
+    import os
+    import shutil
+    import hashlib
+    import glob
+    import time
+    import tempfile
+    import urllib
+    from itertools import count
+    from urllib.parse import urlparse
+    from datetime import datetime
+    import atexit
+    import urllib.parse
+    import urllib.request
+
+except Exception as e:
+    print(e.args)
+    sys.exit()
 
 #versione del programma
 VERSION = 1.5
@@ -20,14 +30,14 @@ STOP = 5
 REPEAT = -1
 
 #destinazioni cartelle
-PATH_TEMP = 'temp/'
-PATH_SAVE = 'save/'
+PATH_SAVE = 'save'
 
 #formattazione nomi
 HOUR_FORMAT = '%Y_%m_%d_%H_%M_%S'
 NAME_IMAGE_NOW = 'image.jpg'
+LOG_FILE = 'log.txt'
 
-debug_choice = False
+log_choice = False
 none_choice = False
 
 #presa dei parametri
@@ -38,166 +48,153 @@ def get_argv():
         parser.add_argument('-v', '--version', action='version', version='%(prog)s ' + str(VERSION), help="Versione del programma")
         parser.add_argument('-h', '--help', action='help', default=argparse.SUPPRESS, help='Visualizza i comandi')
         parser.add_argument("-n", action="store_true", dest="none", help="Nessun testo di risposta")
-        parser.add_argument("-d", action="store_true", dest="debug", help="attivazione del debug")
-        parser.add_argument("-t", help="Ogni quanto controllare", default=STOP, dest="time", type=int)
-        parser.add_argument("-r", help="Quante volte controllare", default=REPEAT, dest="repeat", type=int)
+        parser.add_argument("-l", action="store_true", dest="log", help="attivazione dei log")
+        parser.add_argument("-t", help="Ogni quanto controllare 5 - 2592000", default=STOP, dest="time", type=int)
+        parser.add_argument("-r", help="Quante volte controllare 0 - 999999999", default=REPEAT, dest="repeat", type=int)
         parser.add_argument("url", help="Url da monitorare")
         args = parser.parse_args()
         return args
-    except ValueError:
-        print("Errore durante la sezione parametri")
+    except Exception as e:
+        log(e.args, log_choice)
+        print("Chiusura inaspettata del programma")
         sys.exit()
 
 #controllo dei parametri
 def check_argv(argv):
-    #controllo valori inserti
 
-    #controllo del tempo di esecuzione
+    #controllo del tempo di attesa per ogni esecuzione
     try:
         if (int(argv.time) < 5 or int(argv.time) > 2592000):
-            print("Il tempo non deve essere minore di 5 o maggiore di 2592000") #messaggio di errore
-            debug("Valore del tempo non valido", debug_choice)
+            print("Valore tempo non valido") #messaggio di errore
             sys.exit()
         else:
-            debug("Valore del tempo valido", debug_choice) #validazione del tempo eseguita con successo
-    except ValueError:
-        print("Errore durante la sezione controllo del tempo di durata")
+            log("Valore del tempo di attesa per ogni ciclo valido", log_choice) #validazione del tempo eseguita con successo
+    except Exception as e:
+        log(e.args, log_choice)
+        print("Chiusura inaspettata del programma")
         sys.exit()
-
-
 
     #controllo dei cicli da ripetere
     try:
         if (int(argv.repeat) < -1 or int(argv.repeat) > 999999999):
-            print("Il numero dei cicli di controllo immessi è maggiore di quello permesso") #messaggio di errore
-            debug("Valore dei cicli non valido", debug_choice)
+            print("Valore dei cicli non valido") #messaggio di errore
             sys.exit()
         else:
-            debug("Valore del numero di cicli di controllo è valido", debug_choice) #validazione dell'input del numero di cicli di controllo
-    except ValueError:
-        print("Errore durante l'analisi dei cicli di controllo")
+            log("Valore del numero di cicli di controllo valido", log_choice) #validazione numero di cicli di controllo
+    except Exception as e:
+        log(e.args, log_choice)
+        print("Chiusura inaspettata del programma")
         sys.exit()
 
-
-
-    #controllo formato testuale dell'url
-    if (is_url(argv.url)):
-        debug("l'Url inserito sembra essere in un formato valido", debug_choice)
-    else:
-        print("Il sito inserito non sembra essere un url")
-        debug("l'Url inserito non sembra essere in un formato valido", debug_choice)
-        sys.exit()
-
-
-
-    #controllo se l'url è raggiungibile
+    #controllo della validità dell'url
     try:
+        result = urlparse(argv.url)
         response = requests.get(argv.url)
-        if (response.status_code != 200):
-            print("Sito non raggiungibile inserirne uno raggiungibile") #messaggio di errore
-            debug("Non è possibile stabilire una connessione con l'url inserito", debug_choice)
-            sys.exit()
+        if (not all([result.scheme, result.netloc]) or response.status_code != 200):
+            print("URL non valido")
         else:
-            debug("Url validato correttamente", debug_choice) #validazione dell'input dell'url
-    except:
-        print("L'url sembra non essere raggiungibile o non valido")
+            log("URL valido", log_choice)
+    except Exception as e:
+        log(e.args, log_choice)
+        print("Chiusura inaspettata del programma")
         sys.exit()
 
-#controllo url
-def is_url(url):
-    try:
-        result = urlparse(url)
-        return all([result.scheme, result.netloc])
-    except ValueError:
-        return False
-
-#controlo con md5 del file
-def get_hash(img_path):
-    debug("Esecuzione dell'hash", debug_choice)
-    with open(img_path, "rb") as f:
-        img_hash = hashlib.md5()
+#md5 di file
+def get_md5(path_file):
+    with open(path_file, "rb") as f:
+        md5 = hashlib.md5()
         while chunk := f.read(8192):
-            img_hash.update(chunk)
-    return img_hash.hexdigest()
+            md5.update(chunk)
+    return md5.hexdigest()
 
-#download dell'immagine per il controllo
-def download_image(image_url, folder, image_name):
-    if not os.path.exists(folder):
-        debug("Creazione della cartella " + folder, debug_choice)
-        os.makedirs(folder)
-    img_data = requests.get(image_url).content
-    with open(folder + image_name, 'wb') as handler:
-        handler.write(img_data)
-    debug("immagine scaricata per il controllo", debug_choice)
+#download immagine
+def get_file(url: str, folder: str, name: str):
+    
+    if (folder != ''):
+        if not os.path.exists(folder):
+            os.makedirs(folder)
+        #os.chdir(folder)
+    
+    with urllib.request.urlopen(url) as response:
+        parsed_url_path = urllib.parse.urlparse(response.url).path
+        filename = os.path.basename(parsed_url_path)
+        file_extension = os.path.splitext(filename)
+        with open(folder + name + file_extension[1], 'w+b') as f:
+            shutil.copyfileobj(response, f)
+    #print(os.getcwd())
+    #if (folder != ''):
+        #for i in range(folder.count('/') + 1):
+            #os.chdir('../')
+    return file_extension[1]
 
-#funzione di debug dei messaggi
-def debug(string, status):
+#funzione di log dei messaggi
+def log(string, status):
     if(status):
-        print('[' + datetime.now().strftime('%H:%M:%S') + '] ' + string)
+        if (os.path.exists(LOG_FILE)):
+            with open(LOG_FILE, 'a') as f:
+                f.write('[' + datetime.now().strftime('%H:%M:%S') + '] ' + string)
+        else:
+            with open(LOG_FILE, 'w') as f:
+                f.write('[' + datetime.now().strftime('%H:%M:%S') + '] ' + string)
 
-if __name__ == "__main__":
-    save_name = ''
-    #controllo argomenti
+
+def main():
+    #contorllo argomenti
     argv = get_argv()
     check_argv(argv)
-    #presa dei valori
+    #associazioni variabili
     stop = int(argv.time)
     repeat = int(argv.repeat)
     url = argv.url
-    debug_choice = argv.debug
+    log_choice = argv.log
     none_choice = not argv.none
 
-    #esecuzione controllo immagine
+    #creazione di una cartella temporanea
+    PATH_TEMP = tempfile.mkdtemp()
+  
     for i in count(0):
-
         try:
-            exit() if i == repeat else 1
-            #download immagine
-            debug("Inizio analisi", debug_choice)
-            temp_name = 'image_' + datetime.now().strftime(HOUR_FORMAT) + '.jpg'
-            debug('analisi immagine ' + temp_name, debug_choice)
-            if not os.path.exists(PATH_TEMP):
-                os.makedirs(PATH_TEMP)
-            download_image(url, PATH_TEMP, temp_name)
+            exit() if i == repeat else 1 #se raggiunge il numero di cicli indicati
 
-            if (save_name == ''):
-                #se non è presente un immagine precedente nel programma
-                shutil.copy2(PATH_TEMP + temp_name, NAME_IMAGE_NOW)
-                debug("Copia dell'immagine scaricata nella directory principale", debug_choice)
-                if not os.path.exists(PATH_SAVE):
-                    debug("Creazione cartella " + PATH_SAVE, debug_choice)
-                    os.makedirs(PATH_SAVE)
+            #download del file temporaneo per il controllo
+            temp_name = '/image_' + datetime.now().strftime(HOUR_FORMAT)
+            temp_name = '' + temp_name + get_file(url, PATH_TEMP, temp_name)
+
+            #verifica presenza della cartella per il salvataggio
+            if not os.path.exists(PATH_SAVE):
+                os.makedirs(PATH_SAVE)
+            
+            #controllo ultimo file salvato
+            list_of_files = glob.glob(PATH_SAVE + '/*')
+            if (len(list_of_files)):
+                latest_file = max(list_of_files, key=os.path.getmtime)
+                if (get_md5(PATH_TEMP + temp_name) != get_md5(latest_file)): #se è diverso da quello attuale
                     shutil.copy2(PATH_TEMP + temp_name, PATH_SAVE + temp_name)
-                else:
-                    debug("Controllo file presenti nella cartella " + PATH_SAVE, debug_choice)
-                    list_of_files = glob.glob(PATH_SAVE + '*')
-                    if (len(list_of_files)):
-                        latest_file = max(list_of_files, key=os.path.getmtime)
-                        if (get_hash(PATH_TEMP + temp_name) != get_hash(latest_file)):
-                            debug("Nuova immagine trovata", none_choice)
-                            shutil.copy2(PATH_TEMP + temp_name, PATH_SAVE + temp_name)
-                save_name = temp_name
+                    shutil.copy2(PATH_TEMP + temp_name, NAME_IMAGE_NOW) 
+                    if (none_choice):
+                        print("Nuova immagine trovata")
             else:
-                #controllo se l'immagine è stata già salvatata
-                if not os.path.exists(PATH_SAVE):
-                    debug("Creazione cartella " + PATH_SAVE, debug_choice)
-                    os.makedirs(PATH_SAVE)
-                list_of_files = glob.glob(PATH_SAVE + '*')
-                if (len(list_of_files)):
-                    latest_file = max(list_of_files, key=os.path.getmtime)
-                    if (get_hash(PATH_TEMP + temp_name) != get_hash(latest_file)):
-                        shutil.copy2(PATH_TEMP + temp_name, PATH_SAVE + temp_name)
-                        shutil.copy2(PATH_TEMP + temp_name, NAME_IMAGE_NOW)
-                        debug("Nuova immagine trovata", none_choice)
-                debug("Salvataggio immagine " + temp_name, debug_choice)
-                save_name = temp_name
-
-            #puliaizia file temporanei
+                shutil.copy2(PATH_TEMP + temp_name, PATH_SAVE + temp_name)
+                shutil.copy2(PATH_TEMP + temp_name, NAME_IMAGE_NOW)
+                if (none_choice):
+                    print("Nuova immagine trovata")
+                 
+            #eliminazione del file di controllo
             if os.path.exists(PATH_TEMP + temp_name):
-                debug("Eliminazione file di lavoro", debug_choice)
                 os.remove(PATH_TEMP + temp_name)
 
             #attesa
             time.sleep(stop)
-        except ValueError:
-            continue
+
+        except Exception as e: #gestione errore
+            log(e.args, log_choice)
+            print("Chiusura inaspettata del programma")
+            print(e.args)
+            sys.exit()
+        except KeyboardInterrupt: #ctrl + c
+            print("Chiusura")
+            shutil.rmtree(PATH_TEMP)
+            sys.exit()
+
+if __name__ == "__main__":
+    main()
