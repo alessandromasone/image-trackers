@@ -1,6 +1,7 @@
 #!/usr/bin/python
 
 try:
+    import pathlib
     import argparse
     import sys
     import requests
@@ -32,11 +33,18 @@ PATH_SAVE = 'save'
 
 #formattazione nomi
 HOUR_FORMAT = '%Y_%m_%d_%H_%M_%S'
-NAME_IMAGE_NOW = 'image.jpg'
+NAME_FILE = 'file'
 LOG_FILE = 'log.txt'
 
 log_choice = False
 none_choice = False
+
+def connected_to_internet(url='http://www.google.com/', timeout=5):
+    try:
+        _ = requests.head(url, timeout=timeout)
+        return True
+    except requests.ConnectionError:
+        return False
 
 #presa dei parametri
 def get_argv():
@@ -49,12 +57,12 @@ def get_argv():
         parser.add_argument("-l", action="store_true", dest="log", help="attivazione dei log")
         parser.add_argument("-t", help="Ogni quanto controllare 5 - 2592000", default=STOP, dest="time", type=int)
         parser.add_argument("-r", help="Quante volte controllare 0 - 999999999", default=REPEAT, dest="repeat", type=int)
+        parser.add_argument("-e", help="Tipologia di estensione personale", dest="ext", type=str)
         parser.add_argument("url", help="Url da monitorare")
         args = parser.parse_args()
         return args
     except Exception as e:
-        log(e.args, log_choice)
-        print("Chiusura inaspettata del programma")
+        print(e.args)
         sys.exit()
 
 #controllo dei parametri
@@ -97,6 +105,18 @@ def check_argv(argv):
         print("Chiusura inaspettata del programma")
         sys.exit()
 
+
+    #controllo dell'estensione
+    try:
+        if ((argv.ext != None) and ((argv.ext.count('.') != 1 or (len(argv.ext) > 3 and len(argv.ext) < 2)))):
+            print("Estenzione non valida")
+            sys.exit()
+        log("Estenzione valida", log_choice)
+    except Exception as e:
+        log(e.args, log_choice)
+        print("Chiusura inaspettata del programma")
+        sys.exit() 
+
 #md5 del file
 def get_md5(path_file):
     try:
@@ -112,7 +132,7 @@ def get_md5(path_file):
         sys.exit()
 
 #download file
-def get_file(url: str, folder: str, name: str):
+def get_file(url: str, folder: str, name: str, ext):
     try:
         if (folder != ''):
             if not os.path.exists(folder):
@@ -122,10 +142,14 @@ def get_file(url: str, folder: str, name: str):
             parsed_url_path = urllib.parse.urlparse(response.url).path
             filename = os.path.basename(parsed_url_path)
             file_extension = os.path.splitext(filename)
-            with open(folder + name + file_extension[1], 'w+b') as f:
+            if (ext != None):
+                file_ext = ext
+            else:
+                file_ext = file_extension[1]
+            with open(folder + name + file_ext, 'w+b') as f:
                 shutil.copyfileobj(response, f)
-        log("Immagine scaricata", log_choice)
-        return file_extension[1]
+        log("File scaricato", log_choice)
+        return file_ext
     except Exception as e:
         log(e.args, log_choice)
         print("Chiusura inaspettata del programma")
@@ -147,6 +171,9 @@ def log(string, status):
         sys.exit()
 
 def main():
+    if (not connected_to_internet()):
+        print("Controlla la connessione ad internet")
+        sys.exit()
     try:
         #contorllo argomenti
         argv = get_argv()
@@ -157,20 +184,21 @@ def main():
         url = argv.url
         log_choice = argv.log
         none_choice = not argv.none
+        ext = argv.ext
         #creazione di una cartella temporanea
         PATH_TEMP = tempfile.mkdtemp()
+        log("Caricamento delle variabili eseguito con successo", log_choice)
     except Exception as e:
         log(e.args, log_choice)
         print("Chiusura inaspettata del programma")
         sys.exit()
-    finally:
-        log("Caricamento delle variabili eseguito con successo", log_choice)
+
 
     for i in count(0):
         try:
             #download del file temporaneo per il controllo
-            temp_name = '/image_' + datetime.now().strftime(HOUR_FORMAT)
-            temp_name = '' + temp_name + get_file(url, PATH_TEMP, temp_name)
+            temp_name = '/' + NAME_FILE + '_' + datetime.now().strftime(HOUR_FORMAT)
+            temp_name = '' + temp_name + get_file(url, PATH_TEMP, temp_name, ext)
             log("Nome del file generato correttamente", log_choice)
 
             #verifica presenza della cartella per il salvataggio
@@ -184,13 +212,13 @@ def main():
                 latest_file = max(list_of_files, key=os.path.getmtime)
                 if (get_md5(PATH_TEMP + temp_name) != get_md5(latest_file)): #se è diverso da quello attuale
                     shutil.copy2(PATH_TEMP + temp_name, PATH_SAVE + temp_name)
-                    shutil.copy2(PATH_TEMP + temp_name, NAME_IMAGE_NOW) 
+                    shutil.copy2(PATH_TEMP + temp_name, NAME_FILE + pathlib.Path(temp_name).suffix) 
                     if (none_choice):
                         print("Nuova immagine trovata (" + str(i + 1) + ")")
                         log("Nuova immagine trovata", log_choice)
             else:
                 shutil.copy2(PATH_TEMP + temp_name, PATH_SAVE + temp_name)
-                shutil.copy2(PATH_TEMP + temp_name, NAME_IMAGE_NOW)
+                shutil.copy2(PATH_TEMP + temp_name, NAME_FILE + pathlib.Path(temp_name).suffix) 
                 if (none_choice):
                     print("Nuova immagine trovata (" + str(i + 1) + ")")
                     log("Nuova immagine trovata", log_choice)
