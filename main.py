@@ -14,16 +14,14 @@ try:
     from itertools import count
     from urllib.parse import urlparse
     from datetime import datetime
-    import atexit
     import urllib.parse
     import urllib.request
-
 except Exception as e:
     print(e.args)
     sys.exit()
 
 #versione del programma
-VERSION = 1.5
+VERSION = 1.7
 
 #tempo di attesa per ogni controllo e quante volte ripetere (-1 = infinito)
 STOP = 5
@@ -99,70 +97,86 @@ def check_argv(argv):
         print("Chiusura inaspettata del programma")
         sys.exit()
 
-#md5 di file
+#md5 del file
 def get_md5(path_file):
-    with open(path_file, "rb") as f:
-        md5 = hashlib.md5()
-        while chunk := f.read(8192):
-            md5.update(chunk)
-    return md5.hexdigest()
+    try:
+        with open(path_file, "rb") as f:
+            md5 = hashlib.md5()
+            while chunk := f.read(8192):
+                md5.update(chunk)
+        log("md5 eseguito con successo", log_choice)
+        return md5.hexdigest()
+    except Exception as e:
+        log(e.args, log_choice)
+        print("Chiusura inaspettata del programma")
+        sys.exit()
 
-#download immagine
+#download file
 def get_file(url: str, folder: str, name: str):
-    
-    if (folder != ''):
-        if not os.path.exists(folder):
-            os.makedirs(folder)
-        #os.chdir(folder)
-    
-    with urllib.request.urlopen(url) as response:
-        parsed_url_path = urllib.parse.urlparse(response.url).path
-        filename = os.path.basename(parsed_url_path)
-        file_extension = os.path.splitext(filename)
-        with open(folder + name + file_extension[1], 'w+b') as f:
-            shutil.copyfileobj(response, f)
-    #print(os.getcwd())
-    #if (folder != ''):
-        #for i in range(folder.count('/') + 1):
-            #os.chdir('../')
-    return file_extension[1]
+    try:
+        if (folder != ''):
+            if not os.path.exists(folder):
+                os.makedirs(folder)
+                log("Creazione cartella", log_choice)
+        with urllib.request.urlopen(url) as response:
+            parsed_url_path = urllib.parse.urlparse(response.url).path
+            filename = os.path.basename(parsed_url_path)
+            file_extension = os.path.splitext(filename)
+            with open(folder + name + file_extension[1], 'w+b') as f:
+                shutil.copyfileobj(response, f)
+        log("Immagine scaricata", log_choice)
+        return file_extension[1]
+    except Exception as e:
+        log(e.args, log_choice)
+        print("Chiusura inaspettata del programma")
+        sys.exit()
 
 #funzione di log dei messaggi
 def log(string, status):
-    if(status):
-        if (os.path.exists(LOG_FILE)):
-            with open(LOG_FILE, 'a') as f:
-                f.write('[' + datetime.now().strftime('%H:%M:%S') + '] ' + string)
-        else:
-            with open(LOG_FILE, 'w') as f:
-                f.write('[' + datetime.now().strftime('%H:%M:%S') + '] ' + string)
-
+    try:
+        if(status):
+            if (os.path.exists(LOG_FILE)):
+                with open(LOG_FILE, 'a') as f:
+                    f.write('[' + datetime.now().strftime('%H:%M:%S') + '] ' + string + '\n')
+            else:
+                with open(LOG_FILE, 'w') as f:
+                    f.write('[' + datetime.now().strftime('%H:%M:%S') + '] ' + string + '\n')
+    except Exception as e:
+        log(e.args, log_choice)
+        print("Chiusura inaspettata del programa")
+        sys.exit()
 
 def main():
-    #contorllo argomenti
-    argv = get_argv()
-    check_argv(argv)
-    #associazioni variabili
-    stop = int(argv.time)
-    repeat = int(argv.repeat)
-    url = argv.url
-    log_choice = argv.log
-    none_choice = not argv.none
+    try:
+        #contorllo argomenti
+        argv = get_argv()
+        check_argv(argv)
+        #associazioni variabili
+        stop = int(argv.time)
+        repeat = int(argv.repeat)
+        url = argv.url
+        log_choice = argv.log
+        none_choice = not argv.none
+        #creazione di una cartella temporanea
+        PATH_TEMP = tempfile.mkdtemp()
+    except Exception as e:
+        log(e.args, log_choice)
+        print("Chiusura inaspettata del programma")
+        sys.exit()
+    finally:
+        log("Caricamento delle variabili eseguito con successo", log_choice)
 
-    #creazione di una cartella temporanea
-    PATH_TEMP = tempfile.mkdtemp()
-  
     for i in count(0):
         try:
-            exit() if i == repeat else 1 #se raggiunge il numero di cicli indicati
-
             #download del file temporaneo per il controllo
             temp_name = '/image_' + datetime.now().strftime(HOUR_FORMAT)
             temp_name = '' + temp_name + get_file(url, PATH_TEMP, temp_name)
+            log("Nome del file generato correttamente", log_choice)
 
             #verifica presenza della cartella per il salvataggio
             if not os.path.exists(PATH_SAVE):
                 os.makedirs(PATH_SAVE)
+                log("Cartella per il salvataggio dello storico dei file", log_choice)
             
             #controllo ultimo file salvato
             list_of_files = glob.glob(PATH_SAVE + '/*')
@@ -172,29 +186,35 @@ def main():
                     shutil.copy2(PATH_TEMP + temp_name, PATH_SAVE + temp_name)
                     shutil.copy2(PATH_TEMP + temp_name, NAME_IMAGE_NOW) 
                     if (none_choice):
-                        print("Nuova immagine trovata")
+                        print("Nuova immagine trovata (" + str(i + 1) + ")")
+                        log("Nuova immagine trovata", log_choice)
             else:
                 shutil.copy2(PATH_TEMP + temp_name, PATH_SAVE + temp_name)
                 shutil.copy2(PATH_TEMP + temp_name, NAME_IMAGE_NOW)
                 if (none_choice):
-                    print("Nuova immagine trovata")
+                    print("Nuova immagine trovata (" + str(i + 1) + ")")
+                    log("Nuova immagine trovata", log_choice)
                  
             #eliminazione del file di controllo
             if os.path.exists(PATH_TEMP + temp_name):
                 os.remove(PATH_TEMP + temp_name)
+                log("Pulizia dei file temporanei", log_choice)
+
+            exit() if i == repeat-1 else 1 #se raggiunge il numero di cicli indicati
 
             #attesa
             time.sleep(stop)
-
         except Exception as e: #gestione errore
             log(e.args, log_choice)
+            shutil.rmtree(PATH_TEMP)
             print("Chiusura inaspettata del programma")
             print(e.args)
             sys.exit()
         except KeyboardInterrupt: #ctrl + c
-            print("Chiusura")
             shutil.rmtree(PATH_TEMP)
             sys.exit()
+        finally:
+            log("Fine eseguzione di un ciclo con successo", log_choice)
 
 if __name__ == "__main__":
     main()
