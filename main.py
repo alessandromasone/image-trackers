@@ -37,7 +37,7 @@ HOUR_FORMAT = '%Y_%m_%d_%H_%M_%S'
 NAME_FILE = 'file'
 LOG_FILE = 'log.txt'
 SAVE_DATA = 'preference.data'
-PATH_TEMP = 'temp'
+PATH_TEMP = ''
 
 #scelte utente
 log_choice = False
@@ -72,6 +72,13 @@ def get_argv():
     except Exception as e:
         print(e.args)
         sys.exit()
+
+def update_file(source, destination, file_name, number, print_choice):
+    shutil.copy2(source, destination)
+    shutil.copy2(source, file_name) 
+    if (print_choice):
+        print("Nuova immagine trovata (" + str(number + 1) + ")")
+        log("Nuova immagine trovata", log_choice)
 
 #controllo dei parametri
 def check_argv(argv):
@@ -240,17 +247,9 @@ def main():
                 if (len(list_of_files)): #se è presente una cartella con i salvataggi precedenti
                     latest_file = max(list_of_files, key=os.path.getmtime)
                     if (get_md5(PATH_TEMP + temp_name) != get_md5(latest_file)): #se è diverso da quello attuale
-                        shutil.copy2(PATH_TEMP + temp_name, PATH_SAVE + temp_name)
-                        shutil.copy2(PATH_TEMP + temp_name, name_file + pathlib.Path(temp_name).suffix) 
-                        if (none_choice):
-                            print("Nuova immagine trovata (" + str(i + 1) + ")")
-                            log("Nuova immagine trovata", log_choice)
+                        update_file(PATH_TEMP + temp_name, PATH_SAVE + temp_name, name_file + pathlib.Path(temp_name).suffix, i, none_choice)
                 else: #primo avvio del programma
-                    shutil.copy2(PATH_TEMP + temp_name, PATH_SAVE + temp_name)
-                    shutil.copy2(PATH_TEMP + temp_name, name_file + pathlib.Path(temp_name).suffix) 
-                    if (none_choice):
-                        print("Nuova immagine trovata (" + str(i + 1) + ")")
-                        log("Nuova immagine trovata", log_choice)
+                    update_file(PATH_TEMP + temp_name, PATH_SAVE + temp_name, name_file + pathlib.Path(temp_name).suffix, i, none_choice)
                     
                 #eliminazione del file di controllo
                 if os.path.exists(PATH_TEMP + temp_name):
@@ -272,6 +271,9 @@ def main():
         print("Chiusura inaspettata del programma")
         print(e.args)
         sys.exit()
+    except KeyboardInterrupt: #ctrl + c
+        shutil.rmtree(PATH_TEMP)
+        sys.exit()
 
 if __name__ == "__main__":
     try:
@@ -281,5 +283,4 @@ if __name__ == "__main__":
         print("Chiusura inaspettata del programma" + e.args)
         sys.exit()
     except KeyboardInterrupt: #ctrl + c
-        shutil.rmtree(PATH_TEMP)
         sys.exit()
