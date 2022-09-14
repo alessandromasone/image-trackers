@@ -45,6 +45,7 @@ none_choice = False
 
 #controllo connessione ad internet
 def connected_to_internet(url='http://www.google.com/', timeout=5):
+    #simula una connssione a una pagina web sicura se ha successo vuok dire che la connssione funziona
     try:
         _ = requests.head(url, timeout=timeout)
         return True
