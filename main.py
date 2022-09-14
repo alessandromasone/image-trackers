@@ -18,8 +18,6 @@ try:
     from itertools import count
     from urllib.parse import urlparse
     from datetime import datetime
-    import urllib.parse
-    import urllib.request
 except Exception as e:
     print(e.args)
     sys.exit()
@@ -39,6 +37,7 @@ HOUR_FORMAT = '%Y_%m_%d_%H_%M_%S'
 NAME_FILE = 'file'
 LOG_FILE = 'log.txt'
 SAVE_DATA = 'preference.data'
+PATH_TEMP = 'temp'
 
 #scelte utente
 log_choice = False
@@ -50,7 +49,8 @@ def connected_to_internet(url='http://www.google.com/', timeout=5):
         _ = requests.head(url, timeout=timeout)
         return True
     except requests.ConnectionError:
-        return False
+        print("Controlla la connessione ad internet")
+        sys.exit()
 
 #presa dei parametri
 def get_argv():
@@ -78,10 +78,10 @@ def check_argv(argv):
     #controllo del tempo di attesa per ogni esecuzione
     try:
         if (int(argv.time) < 5 or int(argv.time) > 2592000):
+            log("Valore tempo non valido", log_choice)
             print("Valore tempo non valido") #messaggio di errore
             sys.exit()
-        else:
-            log("Valore del tempo di attesa per ogni ciclo valido", log_choice) #validazione del tempo eseguita con successo
+        log("Valore del tempo di attesa per ogni ciclo valido", log_choice) #validazione del tempo eseguita con successo
     except Exception as e:
         log(e.args, log_choice)
         print("Chiusura inaspettata del programma" + e.args)
@@ -90,10 +90,10 @@ def check_argv(argv):
     #controllo dei cicli da ripetere
     try:
         if (int(argv.repeat) < -1 or int(argv.repeat) > 999999999):
+            log("Valore dei cicli non valido", log_choice)
             print("Valore dei cicli non valido") #messaggio di errore
             sys.exit()
-        else:
-            log("Valore del numero di cicli di controllo valido", log_choice) #validazione numero di cicli di controllo
+        log("Valore del numero di cicli di controllo valido", log_choice) #validazione numero di cicli di controllo
     except Exception as e:
         log(e.args, log_choice)
         print("Chiusura inaspettata del programma")
@@ -104,21 +104,21 @@ def check_argv(argv):
         result = urlparse(argv.url)
         response = requests.get(argv.url)
         if (not all([result.scheme, result.netloc]) or response.status_code != 200):
-            print("URL non valido")
-        else:
-            log("URL valido", log_choice)
+            log("URL non valido", log_choice)
+            print("URL non valido") #messaggio di errore
+            sys.exit()
+        log("URL valido", log_choice) #validazione url eseguita con successo
     except Exception as e:
         log(e.args, log_choice)
         print("Chiusura inaspettata del programma")
         sys.exit()
 
-
     #controllo dell'estensione
     try:
         if ((argv.ext != None) and ((argv.ext.count('.') != 1 or (len(argv.ext) > 3 and len(argv.ext) < 2)))):
-            print("Estenzione non valida")
+            print("Estenzione non valida") #messaggio di errore
             sys.exit()
-        log("Estenzione valida", log_choice)
+        log("Estenzione valida", log_choice) #validazione dell'estenzione eseguita con successo
     except Exception as e:
         log(e.args, log_choice)
         print("Chiusura inaspettata del programma")
@@ -129,10 +129,9 @@ def check_argv(argv):
         if (argv.name != None):
             regexp = re.compile('[^0-9a-zA-Z]+')
             if regexp.search(argv.name):
-                log("None non valido", log_choice)
-                print("Il nome inserito non è valido")
+                print("Il nome inserito non è valido") #messaggio di errore
                 sys.exit() 
-        log("Nome valido", log_choice)
+        log("Nome valido", log_choice) #validazione del nome personalizzato
     except Exception as e:
         log(e.args, log_choice)
         print("Chiusura inaspettata del programma")
@@ -145,7 +144,7 @@ def get_md5(path_file):
             md5 = hashlib.md5()
             while chunk := f.read(8192):
                 md5.update(chunk)
-        log("md5 eseguito con successo", log_choice)
+        log("md5 eseguito con successo", log_choice) #md5 eseguito con successo
         return md5.hexdigest()
     except Exception as e:
         log(e.args, log_choice)
@@ -155,22 +154,19 @@ def get_md5(path_file):
 #download file
 def get_file(url: str, folder: str, name: str, ext):
     try:
-        if (folder != ''):
+        if (folder != ''): #se la cartella non esiste
             if not os.path.exists(folder):
                 os.makedirs(folder)
-                log("Creazione cartella", log_choice)
-        with urllib.request.urlopen(url) as response:
+                log("Creazione della cartella " + folder, log_choice)
+        with urllib.request.urlopen(url) as response: #download del file come richiesta
             parsed_url_path = urllib.parse.urlparse(response.url).path
             filename = os.path.basename(parsed_url_path)
             file_extension = os.path.splitext(filename)
-            if (ext != None):
-                file_ext = ext
-            else:
-                file_ext = file_extension[1]
-            with open(folder + name + file_ext, 'w+b') as f:
+            file_ext = ext if (ext != None) else file_extension[1]
+            with open(folder + name + file_ext, 'w+b') as f: #salvataggio nella cartella di destinazione
                 shutil.copyfileobj(response, f)
-        log("File scaricato", log_choice)
-        return file_ext
+        log("File scaricato con successo", log_choice)
+        return name + file_ext
     except Exception as e:
         log(e.args, log_choice)
         print("Chiusura inaspettata del programma")
@@ -180,11 +176,8 @@ def get_file(url: str, folder: str, name: str, ext):
 def log(string, status):
     try:
         if(status):
-            if (os.path.exists(LOG_FILE)):
-                with open(LOG_FILE, 'a') as f:
-                    f.write('[' + datetime.now().strftime('%H:%M:%S') + '] ' + string + '\n')
-            else:
-                with open(LOG_FILE, 'w') as f:
+            mode = 'a' if (os.path.exists(LOG_FILE)) else 'w' #se non è creato provvede a creare il file
+            with open(LOG_FILE, mode) as f:
                     f.write('[' + datetime.now().strftime('%H:%M:%S') + '] ' + string + '\n')
     except Exception as e:
         log(e.args, log_choice)
@@ -192,20 +185,28 @@ def log(string, status):
         sys.exit()
 
 def main():
-    if (not connected_to_internet()):
-        print("Controlla la connessione ad internet")
-        sys.exit()
+    #blocco connessione internet
     try:
-        if (len(sys.argv) == 1 and os.path.exists(SAVE_DATA)):
+        connected_to_internet() #controllo connessione ad internet
+    except Exception as e:
+        print(e.args)
+        sys.exit()
+    #blocco controllo preference
+    try:
+        #verifica delle preferenze
+        if len(sys.argv) == 1 and os.path.exists(SAVE_DATA): #se è presente il file di preferenze
             with open(SAVE_DATA, 'rb') as f:
                 argv = pickle.load(f)
-        else:
+        else: #se non è presente un file preferenze
             argv = get_argv()
-        #controllo argomenti
-        check_argv(argv)            
-        file1 = open(SAVE_DATA, "wb") 
-        pickle.dump(argv, file1)
-        file1.close
+        check_argv(argv) #controllo della valità dei parametri
+        #salvataggio dei parametri
+        with open(SAVE_DATA, 'wb') as f:
+            pickle.dump(argv, f)
+    except Exception as e:
+        print(e.args)
+        sys.exit()
+    try:
         #associazioni variabili
         stop = int(argv.time)
         repeat = int(argv.repeat)
@@ -213,66 +214,71 @@ def main():
         log_choice = argv.log
         none_choice = not argv.none
         ext = argv.ext
-        #creazione di una cartella temporanea
-        PATH_TEMP = tempfile.mkdtemp()
-        if (argv.name):
-            name_file = str(argv.name)
-        else:
-            name_file = NAME_FILE
-        log("Caricamento delle variabili eseguito con successo", log_choice)
+        name_file = str(argv.name) if argv.name else NAME_FILE
+        PATH_TEMP = tempfile.mkdtemp() #creazione cartella temporanea
+        log("Variabili associate correttamente", log_choice)
     except Exception as e:
         log(e.args, log_choice)
         print("Chiusura inaspettata del programma")
         sys.exit()
-    for i in count(0):
-        try:
-            #download del file temporaneo per il controllo
-            temp_name = '/' + name_file + '_' + datetime.now().strftime(HOUR_FORMAT)
-            temp_name = '' + temp_name + get_file(url, PATH_TEMP, temp_name, ext)
-            log("Nome del file generato correttamente", log_choice)
+    try:
+        for i in count(0):
+            try:
+                #download del file temporaneo per il controllo
+                temp_name = '/' + name_file + '_' + datetime.now().strftime(HOUR_FORMAT)
+                temp_name = get_file(url, PATH_TEMP, temp_name, ext)
+                log("Nome del file generato correttamente", log_choice)
 
-            #verifica presenza della cartella per il salvataggio
-            if not os.path.exists(PATH_SAVE):
-                os.makedirs(PATH_SAVE)
-                log("Cartella per il salvataggio dello storico dei file", log_choice)
-            
-            #controllo ultimo file salvato
-            list_of_files = glob.glob(PATH_SAVE + '/*')
-            if (len(list_of_files)):
-                latest_file = max(list_of_files, key=os.path.getmtime)
-                if (get_md5(PATH_TEMP + temp_name) != get_md5(latest_file)): #se è diverso da quello attuale
+                #verifica presenza della cartella per il salvataggio
+                if not os.path.exists(PATH_SAVE):
+                    os.makedirs(PATH_SAVE)
+                    log("Cartella per il salvataggio dello storico dei file", log_choice)
+                
+                #avvio ciclo immagini
+                list_of_files = glob.glob(PATH_SAVE + '/*')
+                if (len(list_of_files)): #se è presente una cartella con i salvataggi precedenti
+                    latest_file = max(list_of_files, key=os.path.getmtime)
+                    if (get_md5(PATH_TEMP + temp_name) != get_md5(latest_file)): #se è diverso da quello attuale
+                        shutil.copy2(PATH_TEMP + temp_name, PATH_SAVE + temp_name)
+                        shutil.copy2(PATH_TEMP + temp_name, name_file + pathlib.Path(temp_name).suffix) 
+                        if (none_choice):
+                            print("Nuova immagine trovata (" + str(i + 1) + ")")
+                            log("Nuova immagine trovata", log_choice)
+                else: #primo avvio del programma
                     shutil.copy2(PATH_TEMP + temp_name, PATH_SAVE + temp_name)
                     shutil.copy2(PATH_TEMP + temp_name, name_file + pathlib.Path(temp_name).suffix) 
                     if (none_choice):
                         print("Nuova immagine trovata (" + str(i + 1) + ")")
                         log("Nuova immagine trovata", log_choice)
-            else:
-                shutil.copy2(PATH_TEMP + temp_name, PATH_SAVE + temp_name)
-                shutil.copy2(PATH_TEMP + temp_name, name_file + pathlib.Path(temp_name).suffix) 
-                if (none_choice):
-                    print("Nuova immagine trovata (" + str(i + 1) + ")")
-                    log("Nuova immagine trovata", log_choice)
-                 
-            #eliminazione del file di controllo
-            if os.path.exists(PATH_TEMP + temp_name):
-                os.remove(PATH_TEMP + temp_name)
-                log("Pulizia dei file temporanei", log_choice)
+                    
+                #eliminazione del file di controllo
+                if os.path.exists(PATH_TEMP + temp_name):
+                    os.remove(PATH_TEMP + temp_name)
+                    log("Pulizia dei file temporanei", log_choice)
 
-            exit() if i == repeat-1 else 1 #se raggiunge il numero di cicli indicati
+                exit() if i == repeat-1 else 1 #se raggiunge il numero di cicli indicati
 
-            #attesa
-            time.sleep(stop)
-        except Exception as e: #gestione errore
-            log(e.args, log_choice)
-            shutil.rmtree(PATH_TEMP)
-            print("Chiusura inaspettata del programma")
-            print(e.args)
-            sys.exit()
-        except KeyboardInterrupt: #ctrl + c
-            shutil.rmtree(PATH_TEMP)
-            sys.exit()
-        finally:
-            log("Fine eseguzione di un ciclo con successo", log_choice)
+                #attesa
+                time.sleep(stop)
+            except Exception as e: #gestione errore
+                log(e.args, log_choice)
+                shutil.rmtree(PATH_TEMP)
+                print("Chiusura inaspettata del programma")
+                sys.exit()
+    except Exception as e: #gestione errore
+        log(e.args, log_choice)
+        shutil.rmtree(PATH_TEMP)
+        print("Chiusura inaspettata del programma")
+        print(e.args)
+        sys.exit()
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:
+        log(e.args, log_choice)
+        print("Chiusura inaspettata del programma" + e.args)
+        sys.exit()
+    except KeyboardInterrupt: #ctrl + c
+        shutil.rmtree(PATH_TEMP)
+        sys.exit()
