@@ -1,4 +1,4 @@
-# Image-trackers
+# Image trackers
 
 Image-trackers è un programma scritto in Python per monitorare e rilevare modifiche in un'immagine accessibile da remoto. Il programma offre funzionalità per il download delle immagini, il calcolo dell'MD5, il controllo delle preferenze, la gestione dei log e altro ancora.
 
