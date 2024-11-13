@@ -1,0 +1,20 @@
+# Ignora la cartella dell'ambiente virtuale (ad esempio 'env')
+env/
+
+# Ignora i file .DS_Store di macOS
+.DS_Store
+
+# Ignora i file Python bytecode compilati
+__pycache__/
+*.pyc
+*.pyo
+
+# Ignora file di log
+*.log
+
+# Ignora file temporanei di sistema
+*.swp
+*.swo
+
+# File di preferenza utente
+preference.json
